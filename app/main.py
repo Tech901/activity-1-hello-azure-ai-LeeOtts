@@ -15,7 +15,7 @@ import json
 import os
 import sys
 from datetime import datetime, timezone
-from openai import AzureOpenAI
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -118,7 +118,7 @@ def classify_311_request(request_text: str) -> dict:
         temperature=0,
     )
     # TODO: Step 1.3 - Parse the JSON response with 
-    json.loads()
+    json.loads(response.choices[0].message.content)
     raise NotImplementedError("Implement classify_311_request in Step 1")
 
 
