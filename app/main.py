@@ -15,7 +15,7 @@ import json
 import os
 import sys
 from datetime import datetime, timezone
-
+from openai import AzureOpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -44,14 +44,12 @@ def _get_openai_client():
     """Lazily initialize the Azure OpenAI client."""
     global _openai_client
     if _openai_client is None:
-        # TODO: Uncomment and configure
-        #   from openai import AzureOpenAI
-        #   _openai_client = AzureOpenAI(
-        #       azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-        #       api_key=os.environ["AZURE_OPENAI_API_KEY"],
-        #       api_version="2024-10-21",
-        #   )
-        raise NotImplementedError("Configure the Azure OpenAI client")
+        from azure.openai import AzureOpenAI
+        _openai_client = AzureOpenAI(
+            azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+            api_key=os.environ["AZURE_OPENAI_API_KEY"],
+            api_version="2024-10-21",
+        )
     return _openai_client
 
 
@@ -62,12 +60,12 @@ def _get_content_safety_client():
         # NOTE: The Content Safety SDK handles API versioning internally --
         # no api_version parameter is needed (unlike the OpenAI SDK).
         # TODO: Uncomment and configure
-        #   from azure.ai.contentsafety import ContentSafetyClient
-        #   from azure.core.credentials import AzureKeyCredential
-        #   _content_safety_client = ContentSafetyClient(
-        #       endpoint=os.environ["AZURE_CONTENT_SAFETY_ENDPOINT"],
-        #       credential=AzureKeyCredential(os.environ["AZURE_CONTENT_SAFETY_KEY"]),
-        #   )
+        from azure.ai.contentsafety import ContentSafetyClient
+        from azure.core.credentials import AzureKeyCredential
+        _content_safety_client = ContentSafetyClient(
+            endpoint=os.environ["AZURE_CONTENT_SAFETY_ENDPOINT"],
+            credential=AzureKeyCredential(os.environ["AZURE_CONTENT_SAFETY_KEY"]),
+           )
         raise NotImplementedError("Configure the Content Safety client")
     return _content_safety_client
 
@@ -79,12 +77,12 @@ def _get_language_client():
         # NOTE: The Language SDK handles API versioning internally --
         # no api_version parameter is needed (unlike the OpenAI SDK).
         # TODO: Uncomment and configure
-        #   from azure.ai.textanalytics import TextAnalyticsClient
-        #   from azure.core.credentials import AzureKeyCredential
-        #   _language_client = TextAnalyticsClient(
-        #       endpoint=os.environ["AZURE_AI_LANGUAGE_ENDPOINT"],
-        #       credential=AzureKeyCredential(os.environ["AZURE_AI_LANGUAGE_KEY"]),
-        #   )
+        from azure.ai.textanalytics import TextAnalyticsClient
+        from azure.core.credentials import AzureKeyCredential
+        _language_client = TextAnalyticsClient(
+             endpoint=os.environ["AZURE_AI_LANGUAGE_ENDPOINT"],
+              credential=AzureKeyCredential(os.environ["AZURE_AI_LANGUAGE_KEY"]),
+           )
         raise NotImplementedError("Configure the AI Language client")
     return _language_client
 
@@ -103,11 +101,24 @@ def classify_311_request(request_text: str) -> dict:
     """
     # TODO: Step 1.1 - Get the OpenAI client
     # TODO: Step 1.2 - Call client.chat.completions.create() with:
-    #   model=os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
-    #   A system message that classifies into: Pothole, Noise Complaint,
-    #   Trash/Litter, Street Light, Water/Sewer, Other
-    #   response_format={"type": "json_object"}, temperature=0
-    # TODO: Step 1.3 - Parse the JSON response with json.loads()
+    client = _get_openai_client()
+    response = client.chat.completions.create(
+        model=os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o"),
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Classify the following 311 service request into one of these categories: "
+                    "Pothole, Noise Complaint, Trash/Litter, Street Light, Water/Sewer, Other."
+                ),
+            },
+            {"role": "user", "content": request_text},
+        ],
+        response_format={"type": "json_object"},
+        temperature=0,
+    )
+    # TODO: Step 1.3 - Parse the JSON response with 
+    json.loads()
     raise NotImplementedError("Implement classify_311_request in Step 1")
 
 
