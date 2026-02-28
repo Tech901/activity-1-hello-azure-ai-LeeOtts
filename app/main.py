@@ -108,7 +108,19 @@ def classify_311_request(request_text: str) -> dict:
     #   Trash/Litter, Street Light, Water/Sewer, Other
     #   response_format={"type": "json_object"}, temperature=0
     # TODO: Step 1.3 - Parse the JSON response with json.loads()
-    raise NotImplementedError("Implement classify_311_request in Step 1")
+response = _get_openai_client().chat.completions.create( 
+    model=os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+    messages=[
+        {"role": "system", "content": "Classify this Memphis 311 request into: Pothole, Noise Complaint,Trash/Litter, Street Light, Water/Sewer, Other"},
+        {"role": "user", "content": complaint_text},
+    ],
+    response_format={"type": "json_object"},
+    temperature=0,
+    )
+result = json.loads(response.choices[0].message.content)
+
+
+    #raise NotImplementedError("Implement classify_311_request in Step 1")
 
 
 # ---------------------------------------------------------------------------
