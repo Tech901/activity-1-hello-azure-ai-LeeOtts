@@ -45,13 +45,13 @@ def _get_openai_client():
     global _openai_client
     if _openai_client is None:
         # TODO: Uncomment and configure
-        #   from openai import AzureOpenAI
-        #   _openai_client = AzureOpenAI(
-        #       azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-        #       api_key=os.environ["AZURE_OPENAI_API_KEY"],
-        #       api_version="2024-10-21",
-        #   )
-        raise NotImplementedError("Configure the Azure OpenAI client")
+           from openai import AzureOpenAI
+           _openai_client = AzureOpenAI(
+               azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+               api_key=os.environ["AZURE_OPENAI_API_KEY"],
+               api_version="2024-10-21",
+          )
+        #raise NotImplementedError("Configure the Azure OpenAI client")
     return _openai_client
 
 
@@ -62,13 +62,13 @@ def _get_content_safety_client():
         # NOTE: The Content Safety SDK handles API versioning internally --
         # no api_version parameter is needed (unlike the OpenAI SDK).
         # TODO: Uncomment and configure
-        #   from azure.ai.contentsafety import ContentSafetyClient
-        #   from azure.core.credentials import AzureKeyCredential
-        #   _content_safety_client = ContentSafetyClient(
-        #       endpoint=os.environ["AZURE_CONTENT_SAFETY_ENDPOINT"],
-        #       credential=AzureKeyCredential(os.environ["AZURE_CONTENT_SAFETY_KEY"]),
-        #   )
-        raise NotImplementedError("Configure the Content Safety client")
+           from azure.ai.contentsafety import ContentSafetyClient
+           from azure.core.credentials import AzureKeyCredential
+           _content_safety_client = ContentSafetyClient(
+               endpoint=os.environ["AZURE_CONTENT_SAFETY_ENDPOINT"],
+               credential=AzureKeyCredential(os.environ["AZURE_CONTENT_SAFETY_KEY"]),
+           )
+        #raise NotImplementedError("Configure the Content Safety client")
     return _content_safety_client
 
 
@@ -79,13 +79,13 @@ def _get_language_client():
         # NOTE: The Language SDK handles API versioning internally --
         # no api_version parameter is needed (unlike the OpenAI SDK).
         # TODO: Uncomment and configure
-        #   from azure.ai.textanalytics import TextAnalyticsClient
-        #   from azure.core.credentials import AzureKeyCredential
-        #   _language_client = TextAnalyticsClient(
-        #       endpoint=os.environ["AZURE_AI_LANGUAGE_ENDPOINT"],
-        #       credential=AzureKeyCredential(os.environ["AZURE_AI_LANGUAGE_KEY"]),
-        #   )
-        raise NotImplementedError("Configure the AI Language client")
+           from azure.ai.textanalytics import TextAnalyticsClient
+           from azure.core.credentials import AzureKeyCredential
+           _language_client = TextAnalyticsClient(
+               endpoint=os.environ["AZURE_AI_LANGUAGE_ENDPOINT"],
+               credential=AzureKeyCredential(os.environ["AZURE_AI_LANGUAGE_KEY"]),
+           )
+        #raise NotImplementedError("Configure the AI Language client")
     return _language_client
 
 
