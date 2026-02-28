@@ -44,7 +44,7 @@ def _get_openai_client():
     """Lazily initialize the Azure OpenAI client."""
     global _openai_client
     if _openai_client is None:
-        from azure.openai import AzureOpenAI
+        from openai import AzureOpenAI
         _openai_client = AzureOpenAI(
             azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
             api_key=os.environ["AZURE_OPENAI_API_KEY"],
@@ -61,11 +61,13 @@ def _get_content_safety_client():
         # no api_version parameter is needed (unlike the OpenAI SDK).
         # TODO: Uncomment and configure
         from azure.ai.contentsafety import ContentSafetyClient
+        from azure.ai.contentsafety.models import AnalyzeTextOptions
         from azure.core.credentials import AzureKeyCredential
         _content_safety_client = ContentSafetyClient(
             endpoint=os.environ["AZURE_CONTENT_SAFETY_ENDPOINT"],
             credential=AzureKeyCredential(os.environ["AZURE_CONTENT_SAFETY_KEY"]),
            )
+        results=_content_safety_client.analyze_text(AnalyzeTextOptions(text="Some text to check"))
         raise NotImplementedError("Configure the Content Safety client")
     return _content_safety_client
 
@@ -118,8 +120,8 @@ def classify_311_request(request_text: str) -> dict:
         temperature=0,
     )
     # TODO: Step 1.3 - Parse the JSON response with 
-    json.loads(response.choices[0].message.content)
-    raise NotImplementedError("Implement classify_311_request in Step 1")
+    return json.loads(response.choices[0].message.content)
+    #raise NotImplementedError("Implement classify_311_request in Step 1")
 
 
 # ---------------------------------------------------------------------------

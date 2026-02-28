@@ -1,155 +1,275 @@
----
-title: "SDK vs REST API Reference"
-type: reference
-version: "1.0.0"
-parent_activity: "Activity 1 - Hello, Azure AI"
-ai102_objectives:
-  - "1.2 - Plan, create and deploy a Microsoft Foundry Service"
----
+"""
+Activity 1 - Hello, Azure AI
+AI-102: First API calls to Azure AI services
 
-# SDK vs REST API -- When to Use Which
+Your task:
+  1. Load environment variables and validate Azure credentials
+  2. Call Azure OpenAI to classify a Memphis 311 service request
+  3. Call Azure Content Safety to check text for harmful content
+  4. Call Azure AI Language to extract key phrases from a complaint
+  5. Write result.json with responses from all three services
 
-Azure AI services can be called two ways: with an **SDK** (a Python library) or with **raw HTTP requests** (the REST API). This reference shows both approaches side by side so you can see what the SDK handles for you.
+Output: result.json with required fields (task, status, outputs, metadata)
+"""
+import json
+import os
+import sys
+from datetime import datetime, timezone
 
-## Side-by-Side: Classify a 311 Request
+from dotenv import load_dotenv
 
-### Using the OpenAI Python SDK (what you use in Activity 1)
+load_dotenv()
 
-```python
-from openai import AzureOpenAI
+# Resolve activity root so result.json lands in the right place regardless of CWD
+_ACTIVITY_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-client = AzureOpenAI(
-    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-    api_key=os.environ["AZURE_OPENAI_API_KEY"],
-    api_version="2024-10-21",
-)
 
-response = client.chat.completions.create(
-    model="gpt-4o",
-    messages=[
-        {"role": "system", "content": "Classify this Memphis 311 request..."},
-        {"role": "user", "content": complaint_text},
-    ],
-    response_format={"type": "json_object"},
-    temperature=0,
-)
+def _get_sdk_version() -> str:
+    try:
+        from importlib.metadata import version
+        return version("openai")
+    except Exception:
+        return "unknown"
 
-result = json.loads(response.choices[0].message.content)
-print(result["category"])  # "Pothole"
-```
 
-**Lines of code:** ~15
+# ---------------------------------------------------------------------------
+# Lazy client initialization
+# ---------------------------------------------------------------------------
+_openai_client = None
+_content_safety_client = None
+_language_client = None
 
-### Using raw HTTP with `requests`
 
-```python
-import requests
+def _get_openai_client():
+    """Lazily initialize the Azure OpenAI client."""
+    global _openai_client
+    if _openai_client is None:
+        # TODO: Uncomment and configure
+        #   from openai import AzureOpenAI
+        #   _openai_client = AzureOpenAI(
+        #       azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+        #       api_key=os.environ["AZURE_OPENAI_API_KEY"],
+        #       api_version="2024-10-21",
+        #   )
+        raise NotImplementedError("Configure the Azure OpenAI client")
+    return _openai_client
 
-url = f"{os.environ['AZURE_OPENAI_ENDPOINT']}/openai/deployments/gpt-4o/chat/completions"
-headers = {
-    "Content-Type": "application/json",
-    "api-key": os.environ["AZURE_OPENAI_API_KEY"],
-}
-params = {"api-version": "2024-10-21"}
 
-body = {
-    "messages": [
-        {"role": "system", "content": "Classify this Memphis 311 request..."},
-        {"role": "user", "content": complaint_text},
-    ],
-    "response_format": {"type": "json_object"},
-    "temperature": 0,
-}
+def _get_content_safety_client():
+    """Lazily initialize the Azure Content Safety client."""
+    global _content_safety_client
+    if _content_safety_client is None:
+        # NOTE: The Content Safety SDK handles API versioning internally --
+        # no api_version parameter is needed (unlike the OpenAI SDK).
+        # TODO: Uncomment and configure
+        #   from azure.ai.contentsafety import ContentSafetyClient
+        #   from azure.core.credentials import AzureKeyCredential
+        #   _content_safety_client = ContentSafetyClient(
+        #       endpoint=os.environ["AZURE_CONTENT_SAFETY_ENDPOINT"],
+        #       credential=AzureKeyCredential(os.environ["AZURE_CONTENT_SAFETY_KEY"]),
+        #   )
+        raise NotImplementedError("Configure the Content Safety client")
+    return _content_safety_client
 
-resp = requests.post(url, headers=headers, params=params, json=body, timeout=30)
-resp.raise_for_status()
 
-data = resp.json()
-result = json.loads(data["choices"][0]["message"]["content"])
-print(result["category"])  # "Pothole"
-```
+def _get_language_client():
+    """Lazily initialize the Azure AI Language client."""
+    global _language_client
+    if _language_client is None:
+        # NOTE: The Language SDK handles API versioning internally --
+        # no api_version parameter is needed (unlike the OpenAI SDK).
+        # TODO: Uncomment and configure
+        #   from azure.ai.textanalytics import TextAnalyticsClient
+        #   from azure.core.credentials import AzureKeyCredential
+        #   _language_client = TextAnalyticsClient(
+        #       endpoint=os.environ["AZURE_AI_LANGUAGE_ENDPOINT"],
+        #       credential=AzureKeyCredential(os.environ["AZURE_AI_LANGUAGE_KEY"]),
+        #   )
+        raise NotImplementedError("Configure the AI Language client")
+    return _language_client
 
-**Lines of code:** ~22
 
----
+# ---------------------------------------------------------------------------
+# TODO: Step 1 - Classify a 311 request with Azure OpenAI
+# ---------------------------------------------------------------------------
+def classify_311_request(request_text: str) -> dict:
+    """Send a Memphis 311 service request to Azure OpenAI for classification.
 
-## What the SDK Handles for You
+    Args:
+        request_text: The citizen's complaint text.
 
-| Concern | SDK | Raw HTTP |
-|---------|-----|----------|
-| **URL construction** | Builds the full URL from endpoint + deployment | You construct it manually |
-| **Authentication** | Passes `api-key` header automatically | You set headers yourself |
-| **API versioning** | Managed via `api_version` parameter | You add `?api-version=` to every request |
-| **Retry logic** | Built-in exponential backoff on 429/5xx | You implement retries yourself |
-| **Response parsing** | Returns typed objects (`ChatCompletion`) | You parse raw JSON dicts |
-| **Error handling** | Raises specific exceptions (`AuthenticationError`, `RateLimitError`) | You check `resp.status_code` manually |
-| **Streaming** | `stream=True` gives you an iterator | You handle chunked transfer encoding |
-| **Type hints** | Full IDE autocomplete and type checking | No type safety on response fields |
+    Returns:
+        dict with keys: category, confidence, reasoning
+    """
+    # TODO: Step 1.1 - Get the OpenAI client
+    # TODO: Step 1.2 - Call client.chat.completions.create() with:
+    #   model=os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+    #   A system message that classifies into: Pothole, Noise Complaint,
+    #   Trash/Litter, Street Light, Water/Sewer, Other
+    #   response_format={"type": "json_object"}, temperature=0
+    # TODO: Step 1.3 - Parse the JSON response with json.loads()
+    raise NotImplementedError("Implement classify_311_request in Step 1")
 
----
 
-## When Would You Use Raw HTTP?
+# ---------------------------------------------------------------------------
+# TODO: Step 2 - Check content safety
+# ---------------------------------------------------------------------------
+def check_content_safety(text: str) -> dict:
+    """Check text for harmful content using Azure Content Safety.
 
-The SDK is the right choice for most production code. But there are legitimate reasons to use the REST API directly:
+    Args:
+        text: Text to analyze.
 
-1. **No SDK exists** -- Some Azure AI features ship a REST endpoint before the SDK is updated. You can start building immediately instead of waiting.
+    Returns:
+        dict with keys: safe (bool), categories (dict of category: severity)
+    """
+    # TODO: Step 2.1 - Get the Content Safety client
+    # TODO: Step 2.2 - Call client.analyze_text() with AnalyzeTextOptions
+    # TODO: Step 2.3 - Return safety results
+    raise NotImplementedError("Implement check_content_safety in Step 2")
 
-2. **Debugging** -- When something goes wrong, seeing the raw request and response headers can reveal issues (wrong API version, unexpected redirects, auth failures) that the SDK abstracts away.
 
-3. **Custom middleware** -- If you need to route requests through a proxy, add custom logging, or modify headers for compliance, raw HTTP gives you full control.
+# ---------------------------------------------------------------------------
+# TODO: Step 3 - Extract key phrases
+# ---------------------------------------------------------------------------
+def extract_key_phrases(text: str) -> list[str]:
+    """Extract key phrases from text using Azure AI Language.
 
-4. **Lightweight environments** -- In a serverless function with strict package size limits, `requests` (or the built-in `urllib`) adds less overhead than the full Azure SDK chain.
+    Args:
+        text: Text to analyze.
 
-5. **Cross-language consistency** -- If your team works in a language without a mature SDK (e.g., Rust, Elixir), the REST API is the universal interface.
+    Returns:
+        List of key phrase strings.
+    """
+    # TODO: Step 3.1 - Get the Language client
+    # TODO: Step 3.2 - Call client.extract_key_phrases([text])
+    # TODO: Step 3.3 - Return the list of key phrases
+    raise NotImplementedError("Implement extract_key_phrases in Step 3")
 
----
 
-## AI-102 Exam Connection
+def main():
+    """Main function -- call all three Azure AI services."""
 
-Domain 1.2 tests whether you understand the difference between SDK and REST approaches:
+    # Optionally load a complaint from data/sample_requests.json
+    # Pass an index as a CLI argument: python app/main.py 2
+    data_path = os.path.join(_ACTIVITY_DIR, "data", "sample_requests.json")
+    if len(sys.argv) > 1 and os.path.exists(data_path):
+        with open(data_path) as f:
+            samples = json.load(f)
+        idx = int(sys.argv[1]) % len(samples)
+        sample_request = samples[idx]["text"]
+        print(f"Using sample request #{samples[idx]['id']}: {sample_request[:60]}...")
+    else:
+        sample_request = (
+            "There's a huge pothole on Poplar Avenue near the "
+            "Walgreens that damaged my tire"
+        )
 
-- **Know both patterns**: The exam may show you a code snippet using `requests.post()` and ask what is wrong, or show SDK code and ask which parameter controls behavior.
-- **Know the trade-offs**: SDKs provide convenience and safety; REST provides flexibility and transparency.
-- **Know the URL structure**: Azure OpenAI REST URLs follow the pattern `{endpoint}/openai/deployments/{model}/chat/completions?api-version={version}`. Cognitive Services endpoints use `{endpoint}/{service-path}?api-version={version}`.
+    # Each step is wrapped in try/except so result.json is always written,
+    # even if you haven't completed every step yet.
 
----
+    # Step 1: Classify with Azure OpenAI
+    classification = None
+    try:
+        classification = classify_311_request(sample_request)
+        print(f"Step 1 complete: classified as {classification.get('category', 'unknown')}")
+    except NotImplementedError:
+        print("Step 1 not implemented yet -- skipping classification")
+    except Exception as e:
+        print(f"Step 1 error: {e}")
 
-## Content Safety: SDK vs REST
+    # Step 2: Content safety check
+    safety = None
+    try:
+        safety = check_content_safety(sample_request)
+        print(f"Step 2 complete: content safety analyzed ({len(safety.get('categories', {}))} categories)")
+    except NotImplementedError:
+        print("Step 2 not implemented yet -- skipping content safety")
+    except Exception as e:
+        print(f"Step 2 error: {e}")
 
-For comparison, here is the same pattern with Azure Content Safety:
+    # Step 3: Key phrase extraction
+    key_phrases = None
+    try:
+        key_phrases = extract_key_phrases(sample_request)
+        print(f"Step 3 complete: extracted {len(key_phrases)} key phrases")
+    except NotImplementedError:
+        print("Step 3 not implemented yet -- skipping key phrases")
+    except Exception as e:
+        print(f"Step 3 error: {e}")
 
-### SDK
+    # Determine status
+    has_classification = (
+        isinstance(classification, dict) and classification.get("category")
+    )
+    has_safety = isinstance(safety, dict) and "safe" in safety
+    has_phrases = isinstance(key_phrases, list) and len(key_phrases) > 0
 
-```python
-from azure.ai.contentsafety import ContentSafetyClient
-from azure.ai.contentsafety.models import AnalyzeTextOptions
-from azure.core.credentials import AzureKeyCredential
+    if has_classification and has_safety and has_phrases:
+        status = "success"
+    elif has_classification or has_safety or has_phrases:
+        status = "partial"
+    else:
+        status = "error"
 
-client = ContentSafetyClient(
-    endpoint=os.environ["AZURE_CONTENT_SAFETY_ENDPOINT"],
-    credential=AzureKeyCredential(os.environ["AZURE_CONTENT_SAFETY_KEY"]),
-)
-result = client.analyze_text(AnalyzeTextOptions(text="Some text to check"))
-```
+    result = {
+        "task": "hello_azure_ai",
+        "status": status,
+        "outputs": {
+            "classification": classification,
+            "content_safety": safety,
+            "key_phrases": key_phrases,
+        },
+        "metadata": {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "model": os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o"),
+            "sdk_version": _get_sdk_version(),
+        },
+    }
 
-### REST
+    result_path = os.path.join(_ACTIVITY_DIR, "result.json")
+    with open(result_path, "w") as f:
+        json.dump(result, f, indent=2)
 
-```python
-url = f"{os.environ['AZURE_CONTENT_SAFETY_ENDPOINT']}/contentsafety/text:analyze"
-headers = {
-    "Content-Type": "application/json",
-    "Ocp-Apim-Subscription-Key": os.environ["AZURE_CONTENT_SAFETY_KEY"],
-}
-params = {"api-version": "2024-09-01"}
-body = {"text": "Some text to check"}
+    print(f"\nResult written to {result_path}")
+    _print_dispatch_ticket(sample_request, result)
 
-resp = requests.post(url, headers=headers, params=params, json=body, timeout=30)
-```
 
-Notice the differences: the auth header name changes (`api-key` for OpenAI vs `Ocp-Apim-Subscription-Key` for Cognitive Services), the URL structure is different, and the API version is different. The SDK abstracts all of this.
+def _print_dispatch_ticket(complaint_text: str, result: dict):
+    """Display result.json as a human-readable Memphis 311 dispatch ticket."""
+    outputs = result.get("outputs", {})
+    classification = outputs.get("classification") or {}
+    safety = outputs.get("content_safety") or {}
+    key_phrases = outputs.get("key_phrases") or []
 
----
+    category = classification.get("category", "—")
+    confidence = classification.get("confidence", "—")
+    reasoning = classification.get("reasoning", "—")
 
-## Key Takeaway
+    if safety.get("safe") is True:
+        safety_status = "CLEAR"
+    elif safety.get("safe") is False:
+        safety_status = "FLAGGED"
+    else:
+        safety_status = "—"
 
-Use the SDK unless you have a specific reason not to. The SDK gives you retries, typed responses, and proper error handling -- exactly the things that are easy to forget when writing raw HTTP calls at 2 AM before a deadline.
+    phrases_str = ", ".join(key_phrases) if key_phrases else "—"
+    complaint_preview = (complaint_text[:70] + "...") if len(complaint_text) > 70 else complaint_text
+
+    print("=" * 60)
+    print("  MEMPHIS 311 -- AI DISPATCH TICKET")
+    print("=" * 60)
+    print(f"  Complaint: {complaint_preview}")
+    print("-" * 60)
+    print(f"  Category:    {category}")
+    print(f"  Confidence:  {confidence}")
+    print(f"  Reasoning:   {reasoning}")
+    print(f"  Safety:      {safety_status}")
+    print(f"  Key phrases: {phrases_str}")
+    print("-" * 60)
+    print(f"  Status: {result.get('status', 'unknown').upper()}")
+    print("=" * 60)
+
+
+if __name__ == "__main__":
+    main()
