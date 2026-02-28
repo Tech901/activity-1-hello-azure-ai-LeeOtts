@@ -91,7 +91,7 @@ def classify_311_request(request_text: str) -> dict:
     response = _get_openai_client().chat.completions.create( 
     model=os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o"),
     messages=[
-        {"role": "system", "content": "Classify this Memphis 311 request into one of: Pothole, Noise Complaint, Trash/Litter, Street Light, Water/Sewer, Other. Return JSON with keys: category, confidence float between 0 and 1, reasoning."},
+        {"role": "system", "content": "Classify this Memphis 311 request into one of: Pothole, Noise Complaint, Trash/Litter, Street Light, Water/Sewer, Other. Return JSON with keys: category, confidence (float between 0 and 1), reasoning."},
         {"role": "user", "content": request_text},
     ],
     response_format={"type": "json_object"},
