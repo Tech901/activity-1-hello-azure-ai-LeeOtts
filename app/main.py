@@ -51,7 +51,6 @@ def _get_openai_client():
             api_key=os.environ["AZURE_OPENAI_API_KEY"],
             api_version="2024-10-21",
         )
-        #raise NotImplementedError("Configure the Azure OpenAI client")
     return _openai_client
 
 
@@ -68,7 +67,6 @@ def _get_content_safety_client():
             endpoint=os.environ["AZURE_CONTENT_SAFETY_ENDPOINT"],
             credential=AzureKeyCredential(os.environ["AZURE_CONTENT_SAFETY_KEY"]),
         )
-        #raise NotImplementedError("Configure the Content Safety client")
     return _content_safety_client
 
 
@@ -76,9 +74,6 @@ def _get_language_client():
     """Lazily initialize the Azure AI Language client."""
     global _language_client
     if _language_client is None:
-        # NOTE: The Language SDK handles API versioning internally --
-        # no api_version parameter is needed (unlike the OpenAI SDK).
-        # TODO: Uncomment and configure
         from azure.ai.textanalytics import TextAnalyticsClient
         from azure.core.credentials import AzureKeyCredential
         _language_client = TextAnalyticsClient(
@@ -96,7 +91,7 @@ def classify_311_request(request_text: str) -> dict:
     response = _get_openai_client().chat.completions.create( 
     model=os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o"),
     messages=[
-        {"role": "system", "content": "Classify this Memphis 311 request into one of: Pothole, Noise Complaint, Trash/Litter, Street Light, Water/Sewer, Other. Return JSON with keys: category, confidence, reasoning."},
+        {"role": "system", "content": "Classify this Memphis 311 request into one of: Pothole, Noise Complaint, Trash/Litter, Street Light, Water/Sewer, Other. Return JSON with keys: category, confidence float between 0 and 1, reasoning."},
         {"role": "user", "content": request_text},
     ],
     response_format={"type": "json_object"},
@@ -106,59 +101,28 @@ def classify_311_request(request_text: str) -> dict:
     return result
 
 
-# raise NotImplementedError("Implement classify_311_request in Step 1")
-
-
 # ---------------------------------------------------------------------------
 # TODO: Step 2 - Check content safety
 # ---------------------------------------------------------------------------
 def check_content_safety(text: str) -> dict:
     from azure.ai.contentsafety.models import AnalyzeTextOptions
-    client = _get_content_safety_client()
-    response = client.analyze_text(AnalyzeTextOptions(text=text))
-
+    result = _get_content_safety_client().analyze_text(AnalyzeTextOptions(text=text))
     categories = {
         cat.category: cat.severity
-        for cat in response.categories_analysis
+        for cat in result.categories_analysis
     }
     safe = all(severity == 0 for severity in categories.values())
     return {"safe": safe, "categories": categories}
-
-    """Check text for harmful content using Azure Content Safety.
-
-    Args:
-        text: Text to analyze.
-
-    Returns:
-        dict with keys: safe (bool), categories (dict of category: severity)
-    """
-    # TODO: Step 2.1 - Get the Content Safety client
-    # TODO: Step 2.2 - Call client.analyze_text() with AnalyzeTextOptions
-    # TODO: Step 2.3 - Return safety results
-    
-
-
 
 
 # ---------------------------------------------------------------------------
 # TODO: Step 3 - Extract key phrases
 # ---------------------------------------------------------------------------
 def extract_key_phrases(text: str) -> list[str]:
-
-    
-    """Extract key phrases from text using Azure AI Language.
-
-    Args:
-        text: Text to analyze.
-
-    Returns:
-        List of key phrase strings.
-    """
-    # TODO: Step 3.1 - Get the Language client
-    # TODO: Step 3.2 - Call client.extract_key_phrases([text])
-    # TODO: Step 3.3 - Return the list of key phrases
-    raise NotImplementedError("Implement extract_key_phrases in Step 3")
-
+    response = _get_language_client().extract_key_phrases([text])
+    if response[0].is_error:
+        raise ValueError(f"Error extracting key phrases: {response[0].error}")
+    return list(response[0].key_phrases)
 
 def main():
     """Main function -- call all three Azure AI services."""
