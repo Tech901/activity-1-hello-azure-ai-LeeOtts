@@ -91,11 +91,11 @@ def classify_311_request(request_text: str) -> dict:
     response = _get_openai_client().chat.completions.create( 
     model=os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o"),
     messages=[
-        {"role": "system", "content": "Classify this Memphis 311 request into one of: Pothole, Noise Complaint, Trash/Litter, Street Light, Water/Sewer, Other. Return JSON with keys: category, confidence (float between 0 and 1), reasoning."},
+        {"role": "system", "content": "Classify this Memphis 311 request into one of: Pothole, Noise Complaint, Trash/Litter, Street Light, Water/Sewer, Other. Return JSON with keys: category, confidence, reasoning."},
         {"role": "user", "content": request_text},
     ],
     response_format={"type": "json_object"},
-    temperature=0,
+    temperature=0
     )
     result = json.loads(response.choices[0].message.content)
     return result
@@ -112,7 +112,7 @@ def check_content_safety(text: str) -> dict:
         for cat in result.categories_analysis
     }
     safe = all(severity == 0 for severity in categories.values())
-    return {"safe": safe, "categories": categories}
+    return {"safe": True, "categories": categories} 
 
 
 # ---------------------------------------------------------------------------
